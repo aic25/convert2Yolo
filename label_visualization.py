@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 import json
 
-from Format import VOC, COCO, UDACITY, KITTI, YOLO
+from Format import VOC, COCO, UDACITY, KITTI, YOLO, COCO_TEXT
 
 parser = argparse.ArgumentParser(description='Evaluate label Converting.')
 parser.add_argument('--datasets', type=str, help='type of datasets')
@@ -33,6 +33,9 @@ def main():
 
     if datasets == "COCO":
         coco = COCO()
+        result, data = coco.parse(label_path)
+    elif datasets == "COCO_TEXT":
+        coco = COCO_TEXT()
         result, data = coco.parse(label_path)
     elif datasets == "VOC":
         voc = VOC()

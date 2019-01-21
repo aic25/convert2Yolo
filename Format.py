@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import sys
 import os
 import csv
@@ -9,6 +11,9 @@ from PIL import Image
 import json
 
 from xml.etree.ElementTree import dump
+
+import unicodedata
+
 
 # Common Data format
 """
@@ -51,7 +56,7 @@ from xml.etree.ElementTree import dump
 }
 """
 
-def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█'):
+def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '+'):
     """
     Call in a loop to create terminal progress bar
     @params:
@@ -63,7 +68,7 @@ def printProgressBar (iteration, total, prefix = '', suffix = '', decimals = 1, 
         length      - Optional  : character length of bar (Int)
         fill        - Optional  : bar fill character (Str)
     """
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    percent = ("{0:.1f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + '-' * (length - filledLength)
     print('\r%s|%s| %s%% (%s/%s)  %s' % (prefix, bar, percent, iteration, total, suffix), end = '\r')
@@ -364,6 +369,95 @@ class COCO:
                     }
 
                 printProgressBar(progress_cnt + 1, progress_length, prefix='COCO Parsing:'.ljust(15), suffix='Complete', length=40)
+                progress_cnt += 1
+
+            #print(json.dumps(data, indent=4, sort_keys = True))
+            return True, data
+
+        except Exception as e:
+
+            exc_type, exc_obj, exc_tb = sys.exc_info()
+            fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+
+            msg = "ERROR : {}, moreInfo : {}\t{}\t{}".format(e, exc_type, fname, exc_tb.tb_lineno)
+
+            return False, msg
+
+class COCO_TEXT:
+    """
+    Handler Class for COCO-TEXT Format
+    """
+
+    @staticmethod
+    def parse(json_path):
+
+        try:
+            json_data = json.load(open(json_path))
+
+            images_info = json_data["imgs"]
+            cls_info = json_data["cats"]
+            img2anns_info = json_data["imgToAnns"]
+            coco_text_cats = {1:'machine printed', 2:'handwritten', 3:'others'}
+
+            data = {}
+
+            progress_length = len(json_data["anns"])
+            progress_cnt = 0
+            printProgressBar(0, progress_length, prefix='\nCOCO TEXT Parsing:'.ljust(15), suffix='Complete', length=40)
+
+            for anno in json_data["anns"].values():
+
+                image_id = anno["image_id"]
+                
+                filename = None
+                img_width = None
+                img_height = None
+                cls = anno["class"]
+
+                for info, anns in zip(images_info.values(), img2anns_info.values()):
+                    if anns:
+                        if info["id"] == image_id:
+                            filename, img_width, img_height = \
+                                info["file_name"].split(".")[0], info["width"], info["height"]
+
+                size = {
+                    "width": img_width,
+                    "height": img_height,
+                    "depth": "3"
+                }
+
+                bndbox = {
+                    "xmin": anno["bbox"][0],
+                    "ymin": anno["bbox"][1],
+                    "xmax": anno["bbox"][2] + anno["bbox"][0],
+                    "ymax": anno["bbox"][3] + anno["bbox"][1]
+                }
+
+                obj_info = {
+                    "name": cls,
+                    "bndbox": bndbox
+                }
+
+                if filename in data:
+                    obj_idx = str(int(data[filename]["objects"]["num_obj"]))
+                    data[filename]["objects"][str(obj_idx)] = obj_info
+                    data[filename]["objects"]["num_obj"] = int(obj_idx) + 1
+
+                elif filename not in data:
+
+                    obj = {
+                        "num_obj": "1",
+                        "0": obj_info
+                    }
+
+                    data[filename] = {
+                        "size": size,
+                        "objects": obj
+                    }
+                #try:
+                printProgressBar(progress_cnt + 1, progress_length, prefix='COCO TEXT Parsing:'.ljust(15), suffix='Complete', length=40)
+                #except:
+                #    pass
                 progress_cnt += 1
 
             #print(json.dumps(data, indent=4, sort_keys = True))
@@ -730,7 +824,7 @@ class YOLO:
             progress_cnt = 0
             printProgressBar(0, progress_length, prefix='\nYOLO Saving:'.ljust(15), suffix='Complete', length=40)
 
-            with open(os.path.abspath(os.path.join(manipast_path, "manifast.txt")), "w") as manipast_file:
+            with open(os.path.abspath(manipast_path), "w") as manipast_file:
 
                 for key in data:
                     manipast_file.write(os.path.abspath(os.path.join(img_path, "".join([key, img_type, "\n"]))))
